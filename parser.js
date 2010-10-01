@@ -233,6 +233,12 @@ RedisParser.prototype.onIncoming = function onIncoming (buffer) {
           this.data     = [];
           this.onData();
           break;
+        } else if (-1 === this.last_data) {
+          // NIL reply.
+          this.expected = this.reply = null;
+          this.data     = null;
+          this.onData();
+          break;
         }
 
         char_code = buffer[pos];

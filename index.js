@@ -166,8 +166,8 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
           previous += '$' + ('' + arg).length + '\r\n' + arg + '\r\n';
         } else if (null === arg || 'undefined' === arg_type) {
           // Send NIL
-          this.stream.write(previous + '$-1\r\n');
-          previous = ''
+          this.stream.write(previous + '$0\r\n\r\n');
+          previous = '';
         } else {
           // Assume we are a buffer.
           previous += '$' + arg.length + '\r\n';
