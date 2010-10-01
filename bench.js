@@ -1,6 +1,6 @@
 var redis  = require('./'),
     redis2 = require('./bench/node_redis'),
-    redis3 = require('./bench/redis-node'),
+    redis3 = require('./bench/redis-node/client.js'),
     redis4 = require('./bench/redis-client'),
     Seq    = require('parallel').Sequence,
     assert = require('assert');
