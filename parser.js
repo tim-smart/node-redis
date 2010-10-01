@@ -267,7 +267,6 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
     this.pos = pos - length;
   };
 
-  var count = 0;
   // When we have recieved a chunk of response data.
   this.onData = function onData () {
     if (null !== this.expected) {

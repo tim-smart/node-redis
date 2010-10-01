@@ -66,24 +66,11 @@ var RedisClient = function RedisClient(port, host) {
     self.onDisconnect();
   });
 
-  // FIXME
-  //this.stream.oldWrite = this.stream.write;
-  //this.stream.write = function (data) {
-    //console.log('>', data);
-    //this.oldWrite(data);
-  //};
-
   // Setup the parser.
   this.parser = new Parser();
 
-  var prev;
   this.parser.on('reply', function (reply) {
     var command = self.commands.shift();
-    if (!command) {
-      console.log(prev);
-      console.log(reply);
-    }
-    prev = command;
     if (command[2]) command[2](null, reply);
   });
 
