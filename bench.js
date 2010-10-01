@@ -73,12 +73,6 @@ for (var i = 0; i < number; i++) {
     Object.keys(benches).forEach(function (bench) {
       client.benches[bench] = [];
 
-      warmup.add(function (next) {
-        benches[bench](client, function (error) {
-          client.flushall(next);
-        });
-      });
-
       task.add(function (next, error) {
         process.stdout.write('.');
         var time = Date.now();
@@ -114,7 +108,9 @@ clients['node-redis'].on('connect', function () {
 
   warmup.run(function () {
     iterations = old_iter;
-    task.run(end);
+    setTimeout(function () {
+      task.run(end);
+    }, 1000);
   });
 });
 

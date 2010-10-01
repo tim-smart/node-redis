@@ -24,101 +24,96 @@ THE SOFTWARE.
 
 var sys = require("sys");
 var Buffer = require("buffer").Buffer,
-    CR        = 0x0D, // \r
-    LF        = 0x0A, // \n
     CRLF      = "\r\n";
 
 
 var Command = exports.Command = function (commandAsArray, client) {
-    this.commandName = commandAsArray.shift().toLowerCase();
+    var commandName = this.commandName = commandAsArray.shift();
     if (typeof commandAsArray[commandAsArray.length-1] === "function") {
         this.commandCallback = commandAsArray.pop();
     }
 
-    // Helps the client to accept the option {isExpectingBinary: true} for client.get
+    // Helps the client to accept the option {encoding: "binary"} for client.get
     // Useful when retrieving a stored image
-    if (this.commandName === "get" && commandAsArray[commandAsArray.length-1] && commandAsArray[commandAsArray.length-1].isExpectingBinary) {
-        this.isExpectingBinary = commandAsArray.pop().isExpectingBinary;
+    if (commandName === "get" && commandAsArray[commandAsArray.length-1].encoding) {
+        this.encoding = commandAsArray.pop().encoding;
     }
     this.commandArgs = commandAsArray;
     this.client = client;
+    this.isPubSub = /^p?(un)?subscribe$/.test(commandName);
 };
 
 Command.prototype = {
+// So we keep things lightweight in our commandHistory
+toHash: function () {
+    var commandName = this.commandName;
+    var hash = {
+        commandName: commandName
+    };
+    if (this.hasOwnProperty("commandCallback")) {
+        hash.commandCallback = this.commandCallback;
+    }
+    if (commandName === "select") {
+        hash.db = this.commandArgs[0];
+    }
+    var args = this.commandArgs;
+    if (args[args.length-1] === "withscores") {
+        hash.withscores = true;
+    }
+    if (this.encoding) hash.encoding = this.encoding;
+    return hash;
+},
+
 // Default Callback in case a commandCallback is not explicitly
 // set on the command instance
 commandCallback: function (err, reply) {
   if (err) sys.log(err);
 },
-toBuffer: function () {
+
+hasBufferArgs: function () {
+    var args = this.commandArgs;
+    for (var i = 0, len = args.length; i < len; i++) {
+        if (args[i] instanceof Buffer) {
+            return true;
+        }
+    }
+    return false;
+},
+/**
+ * Returns the command in a form that can get sent over the stream
+ * to the Redis server. Either returns a Buffer or a String.
+ */
+writeToStream: function () {
     var commandArgs = this.commandArgs,
         commandName = this.commandName,
         numArgs = commandArgs.length,
         expectedBulks = 1 + numArgs, // +1 for commandName
-        offset = this.client.requestBuffer.utf8Write(
-            "*" + expectedBulks + CRLF +    // Bulks to expect
-            "$" + commandName.length + CRLF + // Command Name Bytelength
-            commandName + CRLF,
-        0),
+        useBuffer = this.hasBufferArgs(),
+        cmdStr = "*" + (1 + numArgs) + CRLF +    // Bulks to expect; +1 for commandName
+                 "$" + commandName.length + CRLF + // Command Name Bytelength
+                 commandName + CRLF,
+        stream = this.client.stream,
         i, arg;
-    for (i = 0; i < numArgs; i++) {
-        offset = this._writeArgToRequestBuffer(commandArgs[i], offset);
-    }
-    var ret = this.client.requestBuffer.slice(0, offset);
-    return ret;
-},
-
-_writeArgToRequestBuffer: function (arg, currOffset) {
-    var argAsString, argSerialized, extrasLength;
-    if (arg instanceof Buffer) {
-        extrasLength = 5; // For "$", "\r\n", "\r\n"
-        this._maybeResizeRequestBuffer(arg.length.toString().length + arg.length + extrasLength, currOffset);
-        currOffset += this.client.requestBuffer.asciiWrite("$" + arg.length + CRLF, currOffset);
-        currOffset += arg.copy(this.client.requestBuffer, currOffset, 0);
-        currOffset += this.client.requestBuffer.asciiWrite(CRLF, currOffset);
-    } else if (arg.toString) {
-        argAsString = arg.toString();
-        argSerialized = 
-            "$" + Buffer.byteLength(argAsString, "binary") + CRLF +
-            argAsString + CRLF;
-        this._maybeResizeRequestBuffer(Buffer.byteLength(argSerialized, "binary"), currOffset);
-        currOffset += this.client.requestBuffer.binaryWrite(argSerialized, currOffset);
-    }
-    return currOffset;
-},
-_maybeResizeRequestBuffer: function (atLeast, offset) {
-    var currLength = this.client.requestBuffer.length,
-        bufferLen,
-        newBuffer;
-
-    if (offset + atLeast > currLength) {
-        bufferLen = Math.max(currLength * 2, atLeast * 1.1);
-        newBuffer = new Buffer(Math.round(bufferLen));
-        this.client.requestBuffer.copy(newBuffer, 0, 0, offset);
-        this.client.requestBuffer = newBuffer;
-    }
-},
-_transactionAckCallback: function (err, reply) {
-    var client = this.client;
-    if (!err && reply !== "QUEUED") {
-        err = this.commandName + " was not queued in the transaction.";
-    }
-    if (err) { // If there was an error in the syntax of this command
-        // Remove the transaction commands still ahead of me:
-        for (var i = 0; i < txn.numUnackedCommands; i++); {
-            client.commandHistory.shift();
+    if (useBuffer) {
+        stream.write(cmdStr);
+        for (i = 0; i < numArgs; i++) {
+            arg = commandArgs[i];
+            if (arg instanceof Buffer) {
+                stream.write("$" + arg.length + CRLF);
+                stream.write(arg);
+                stream.write(CRLF);
+            } else {
+                arg = arg + '';
+                stream.write("$" + arg.length + CRLF + arg + CRLF);
+            }
         }
-        // Tell the Redis server to cancel the transaction,
-        // so it doesn't block other clients' commands
-        client.sendCommandInsideTransaction("discard", function (errDiscard, reply) {
-            txn.emit("exit");
-        });
-//                throw err;
     } else {
-        txn.numUnackedCommands--;
-        if (txn.didRegisterAllCommands && (txn.numUnackedCommands === 0)) {
-            txn.appendExec();
+        for (i = 0; i < numArgs; i++) {
+            arg = commandArgs[i] + '';
+            cmdStr += "$" + arg.length + CRLF + arg + CRLF;
         }
+        stream.write(cmdStr);
     }
+//    delete this.client; // Removes client from command, so command's easier on the eyes when sys inspecting
 }
 };

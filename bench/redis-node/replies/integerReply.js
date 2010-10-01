@@ -23,11 +23,36 @@ THE SOFTWARE.
 */
 
 var sys = require("sys"),
-    Reply = require("../reply").Reply;
+    CR = require("../reply").CR,
+    InlineReply = require("./inlineReply").InlineReply;
 
-var IntegerReply = exports.IntegerReply = function IntegerReply (firstLineContent) {
-    Reply.call(this);
-    this.replyValue = parseInt(firstLineContent.asciiSlice(0, firstLineContent.length), 10);
-    this.triggerComplete();
+
+var toSmallString = require("../perf").toSmallString;
+
+var IntegerReply = exports.IntegerReply = function IntegerReply () {
+    this.isComplete = false;
+    this.replyValue = "";
+    this.i = 0;
 };
-sys.inherits(IntegerReply, Reply);
+
+IntegerReply.prototype.parse = function (data, atDataIndex) {
+    var dataLen = data.length,
+        line = this.replyValue;
+    while (atDataIndex < dataLen) {
+        if (data[atDataIndex] === CR) {
+            this.isComplete = true;
+            atDataIndex += 2;
+            break;
+        } else {
+            line += String.fromCharCode(data[atDataIndex++]);
+        }
+    }
+    if (this.isComplete) this.replyValue = parseInt(line, 10);
+    else this.replyValue = line;
+
+//    atDataIndex = InlineReply.prototype.parse.call(this, data, atDataIndex);
+//    if (this.isComplete) {
+//        this.replyValue = parseInt(this.replyValue, 10);
+//    }
+    return atDataIndex;
+};

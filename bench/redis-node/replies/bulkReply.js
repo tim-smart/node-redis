@@ -23,77 +23,87 @@ THE SOFTWARE.
 */
 
 var sys = require("sys"),
-    Reply = require("../reply").Reply,
     Buffer = require("buffer").Buffer,
-    CR        = 0x0D; // \r
+    CR        = require("../reply").CR, // \r
+    IntegerReply = require("./integerReply").IntegerReply;
 
-var BulkReply = exports.BulkReply = function BulkReply (firstLineContent, isBinaryData) {
-    Reply.call(this);
-    var expected = // The bulk byte length that's expected
-        this.expected = parseInt(firstLineContent.asciiSlice(0, firstLineContent.length), 10);
-    this.isBinaryData = isBinaryData;
-    if (expected <= 0) {
-        this.replyValue = null;
-        this.triggerComplete();
-    }
-};
-sys.inherits(BulkReply, Reply);
+var BulkReply = exports.BulkReply = function BulkReply (client, context) {
+    this.client = client;
+    this.isBinaryData = context && context.isBinaryData; // TODO
 
-BulkReply.prototype.reset = function () {
-    Reply.prototype.reset.call(this);
-    delete this.expected;
-    delete this.remaining;
+    this.isComplete = false;
+    this.replyValue = null;
     this.bytesWritten = 0;
+    this.expectedProxy = {replyValue: "", i: 0, isComplete: false};
 };
 
-BulkReply.prototype.valueBuffer = new Buffer(512);
-
-BulkReply.prototype.parse = function () {
-    if (this.isComplete) return;
-
-    var data = this.data,
-        atDataIndex = this.atDataIndex,
-        expected = this.expected,
-        remaining = this.remaining = this.remaining || expected,
+BulkReply.prototype.parse = function (data, atDataIndex) {
+    var dataLen = data.length,
         sliceTo,
-        numNewBytes,
-        valueBuffer = this.valueBuffer;
-    // Resize if necessary
-    if (valueBuffer.length < expected) {
-        valueBuffer = BulkReply.prototype.valueBuffer = new Buffer(expected);
-    }
-
-    // If the data packet won't contain all the expected data
-    sliceTo = atDataIndex + remaining
-    if (data.length < sliceTo) {
-        sliceTo = data.length;
-        data.copy(valueBuffer, this.bytesWritten, atDataIndex, sliceTo);
-        numNewBytes = sliceTo - atDataIndex;
-        this.bytesWritten += numNewBytes;
-        this.remaining -= numNewBytes;
-        this.atDataIndex = sliceTo;
-        this.isDataExhausted = (sliceTo >= data.length);
-
-    // Else the data packet contains enough data to complete the reply
-    } else {
-        if (this.bytesWritten > 0) {
-            data.copy(valueBuffer, this.bytesWritten, atDataIndex, sliceTo);
-            this.replyValue = this.isBinaryData ? valueBuffer.binarySlice(0, expected) : valueBuffer.utf8Slice(0, expected); // Typecast to utf8
-        } else {
-            this.replyValue = this.isBinaryData ? data.binarySlice(atDataIndex, sliceTo) : data.utf8Slice(atDataIndex, sliceTo);
+        val,
+        client = this.client,
+        expected,
+        expectedProxy;
+    while (atDataIndex < dataLen) {
+        if (typeof this.expected === "undefined") {
+            expectedProxy = this.expectedProxy;
+            atDataIndex = IntegerReply.prototype.parse.call(expectedProxy, data, atDataIndex);
+            if (expectedProxy.isComplete) {
+                this.remaining = this.expected = expectedProxy.replyValue;
+                if (this.expected <= 0) {
+                    this.replyValue = null;
+                    this.isComplete = true;
+                    break;
+                }
+                // Resize if necessary
+                if (client.replyBuffer.length < this.expected) {
+                    client.replyBuffer = new Buffer(this.expected);
+                }
+            }
+            continue;
         }
+        expected = this.expected;
+        sliceTo = atDataIndex + this.remaining;
+        // If the data packet won't contain all the expected data
+        if (dataLen < sliceTo) {
+            sliceTo = dataLen;
+            numNewBytes = sliceTo - atDataIndex;
+            if (numNewBytes > 12) {
+                data.copy(client.replyBuffer, this.bytesWritten, atDataIndex, sliceTo);
+                this.bytesWritten += numNewBytes;
+            } else {
+                for (var j = atDataIndex; j < sliceTo; j++) {
+                    client.replyBuffer[this.bytesWritten++] = data[j];
+                }
+            }
+            this.remaining -= numNewBytes;
+            atDataIndex = sliceTo; // === dataLen
+        } else { // Else the data packet contains enough data to complete the reply
+            if (this.bytesWritten > 0) {
+                numNewBytes = sliceTo - atDataIndex;
+                if (numNewBytes > 12) {
+                    data.copy(client.replyBuffer, this.bytesWritten, atDataIndex, sliceTo);
+                    this.bytesWritten += numNewBytes;
+                } else {
+                    for (var j = atDataIndex; j < sliceTo; j++) {
+                        client.replyBuffer[this.bytesWritten++] = data[j];
+                    }
+                }
+                this.replyValue = client.replyBuffer.toString(this.encoding || "utf8", 0, expected); // Default typecast to utf8
+            } else {
+                this.replyValue = data.toString(this.encoding || "utf8", atDataIndex, sliceTo);
+            }
 
-        this.triggerComplete(); // Converts replyValue to UTF8
+            this.isComplete = true;
 
-        // Try advancing beyond CRLF
-        var dataLen = data.length;
-        if (data[sliceTo] === CR) {
-            this.params.didSeeCR = true;
-            sliceTo += 2;
-            if (sliceTo > dataLen) sliceTo = dataLen;
+            // Try advancing beyond CRLF
+            if (data[sliceTo] === CR) {
+                atDataIndex = sliceTo + 2;
+            } else {
+                atDataIndex = sliceTo;
+            }
+            break;
         }
-
-        this.atDataIndex = sliceTo;
-        this.isDataExhausted = (sliceTo >= dataLen);
     }
+    return atDataIndex;
 };
