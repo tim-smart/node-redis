@@ -14,9 +14,13 @@ client2.count = 0;
 var bench = function bench (client, name, callback) {
   var time = Date.now();
 
+  //client.multi();
   for (var i = 0; i < iterations; i++) {
-    client.hmset('bench', 'key' + i, 'test', 'heh' + i, 'teehee');
+    client.hmset('bench', 'key', 'test', 'heh', 'teehee');
+    client.hgetall('bench');
+    client.del('bench');
   }
+  //client.exec();
 
   client.del('bench', function (error) {
     console.log(name, Date.now() - time);

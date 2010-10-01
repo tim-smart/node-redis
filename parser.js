@@ -1,15 +1,7 @@
 var utils = require('./utils');
 
 var RedisParser = function RedisParser () {
-  this.buffer    = null;
-  this.reply     = null;
-  this.expected  = null;
-  this.multi     = null;
-  this.replies   = null;
-  this.pos       = null;
-  this.flag      = 'TYPE';
-  this.data      = '';
-  this.last_data = null;
+  this.resetState();
 
   process.EventEmitter.call(this);
 
@@ -30,7 +22,7 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
     this.replies   = null;
     this.pos       = null;
     this.flag      = 'TYPE';
-    this.data      = '';
+    this.data      = null;
     this.last_data = null;
   };
 
@@ -41,10 +33,16 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
         length = buffer.length;
 
     // Make sure the buffer is joint properly.
-    if ('TYPE' !== this.flag && '' !== this.data) {
-      pos--;
-      char_code = this.data[this.data.length - 1].charCodeAt(0);
-      this.data = this.data.slice(0, -1);
+    if ('TYPE' !== this.flag && null !== this.data) {
+      // We need to wind back a step.
+      // If we have CR now, it would break the parser.
+      if (0 < this.data.length) {
+        char_code = this.data.charCodeAt(this.data.length - 1);
+        this.data = this.data.slice(0, -1);
+        --pos;
+      } else {
+        char_code = buffer[pos];
+      }
     }
 
     for (; length > pos;) {
@@ -78,6 +76,7 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
         }
         // Fast forward a char.
         char_code = buffer[pos];
+        this.data = '';
         break;
 
       // Single line status replies.
@@ -128,10 +127,10 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
           this.data = +this.data;
 
           // Null reply?
-          if (-1 !== this.data) {
+          if (0 <= this.data) {
             this.flag      = 'BULK';
             this.last_data = this.data;
-            this.data      = '';
+            this.data      = null;
           } else {
             this.data = null;
             this.onData();
@@ -155,6 +154,8 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
             this.data = buffer.slice(pos, this.last_data + pos);
           }
 
+          this.onData();
+
           // Push back data.
           pos += this.last_data + 2;
         } else if (null !== this.buffer) {
@@ -170,6 +171,7 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
             this.buffer = null;
             this.pos    = null;
 
+            this.onData();
             pos += 2;
           } else {
             if (15 > this.last_data) {
@@ -177,9 +179,9 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
             } else {
               buffer.copy(this.buffer, 0, 0);
             }
+
             // More to go.
             pos = (this.last_data - (length - pos)) + length;
-            break;
           }
         } else {
           // We will have to do a join.
@@ -192,10 +194,7 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
 
           // Point pos to the amount we need.
           pos = (this.last_data - (length - pos)) + length;
-          break;
         }
-
-        this.onData();
         break;
 
       // How many bulk's are coming?
@@ -209,28 +208,38 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
         // we are at it.
         if (13 === (char_code = buffer[pos])) { // \r CR
           // Cast to int
-          this.data = +this.data;
+          this.last_data = +this.data;
+          this.data      = null;
 
           // Are we multi?
           if (null === this.expected) {
-            this.expected = this.data;
+            this.expected = this.last_data;
             this.reply    = [];
-          } else {
-            this.multi    = this.expected;
-            this.expected = this.data;
-            this.replies  = [];
           }
-
-          this.flag      = 'TYPE';
-          this.last_data = this.data;
-          this.data      = '';
 
           // Skip the \r\n
           pos += 2;
+          this.flag = 'TYPE';
 
-          // TODO: Optimize for common use case, a bulk reply?
+          char_code = buffer[pos];
+
           // Will have to look ahead to check for another MULTI in case
           // we are a multi transaction.
+          if (36 === char_code) { // $ - BULK_LENGTH
+            // We are bulk data.
+            this.flag = 'BULK_LENGTH';
+
+            // We are skipping the TYPE check. Skip the $
+            pos++;
+            // We need to set char code and data.
+            char_code = buffer[pos];
+            this.data = '';
+          } else if (char_code) {
+            // Multi trans time.
+            this.multi    = this.expected;
+            this.expected = null;
+            this.replies  = [];
+          }
         }
         break;
 
@@ -258,6 +267,7 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
     this.pos = pos - length;
   };
 
+  var count = 0;
   // When we have recieved a chunk of response data.
   this.onData = function onData () {
     if (null !== this.expected) {
@@ -269,7 +279,6 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
       if (0 === this.expected) {
         if (null !== this.multi) {
           this.replies.push(this.reply);
-          this.reply = this.expected = null;
           this.multi--;
 
           if (0 === this.multi) {
@@ -278,8 +287,8 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
           }
         } else {
           this.emit('reply', this.reply);
-          this.reply = this.expected = null;
         }
+        this.reply = this.expected = null;
       }
     } else {
       if (null === this.multi) {
@@ -296,7 +305,7 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
     }
 
     this.last_data = null;
-    this.data      = '';
+    this.data      = null;
     this.flag      = 'TYPE';
   };
 
@@ -315,7 +324,7 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
     }
 
     this.last_data = null;
-    this.data      = '';
+    this.data      = null;
     this.flag      = 'TYPE';
   };
 }).call(RedisParser.prototype);

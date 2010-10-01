@@ -66,16 +66,33 @@ var RedisClient = function RedisClient(port, host) {
     self.onDisconnect();
   });
 
+  // FIXME
+  //this.stream.oldWrite = this.stream.write;
+  //this.stream.write = function (data) {
+    //console.log('>', data);
+    //this.oldWrite(data);
+  //};
+
   // Setup the parser.
   this.parser = new Parser();
 
+  var prev;
   this.parser.on('reply', function (reply) {
     var command = self.commands.shift();
+    if (!command) {
+      console.log(prev);
+      console.log(reply);
+    }
+    prev = command;
     if (command[2]) command[2](null, reply);
   });
 
+  // DB error
   this.parser.on('error', function (error) {
-    self.emit('error', error);
+    var command = self.commands.shift();
+    error = new Error(error);
+    if (command[2]) command[2](error);
+    else self.emit('error', error);
   });
 
   process.EventEmitter.call(this);
@@ -99,6 +116,7 @@ RedisClient.prototype.onDisconnect = function (error) {
   // Make sure the stream is reset.
   this.connected = false;
   this.stream.destroy();
+  this.parser.resetState();
 
   // Increment the attempts, so we know what to set the timeout to.
   this.retry_attempts++;
@@ -110,9 +128,6 @@ RedisClient.prototype.onDisconnect = function (error) {
 
   this.retry_delay *= this.retry_backoff;
   this.retry        = true;
-};
-
-RedisClient.prototype.onReply = function (reply) {
 };
 
 // We make some assumptions:
@@ -128,14 +143,15 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
 
   // Do we have to send a multi bulk command?
   // Assume it is a valid command for speed reasons.
-  //var buffer;
-  if (args) {
+  var args_length;
+
+  if (args && 0 < (args_length = args.length)) {
     var arg, arg_type,
-        previous   = '*' + (args.length + 1) + '\r\n' + '$' + command.length + '\r\n' + command + '\r\n',
+        previous   = '*' + (args_length + 1) + '\r\n' + '$' + command.length + '\r\n' + command + '\r\n',
         has_buffer = false;
 
     // TODO: Somehow get rid of this - or an alternative.
-    for (var i = 0, il = args.length; i < il; i++) {
+    for (var i = 0, il = args_length; i < il; i++) {
       if (args[i] instanceof Buffer) {
         has_buffer = true;
         break;
@@ -144,21 +160,23 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
 
     // Send the args. Send as much we can in one go.
     if (false === has_buffer) {
-      for (i = 0, il = args.length; i < il; i++) {
-        arg = args[i];
+      for (i = 0, il = args_length; i < il; i++) {
+        arg = '' + args[i];
         previous += '$' + arg.length + '\r\n' + arg + '\r\n';
       }
 
       this.stream.write(previous);
     } else {
-      for (i = 0, il = args.length; i < il; i++) {
+      for (i = 0, il = args_length; i < il; i++) {
         arg      = args[i];
         arg_type = typeof arg;
 
-        if ('string' === arg_type ||
-            'number' === arg_type) {
+        if ('string' === arg_type) {
           // We can send this in one go.
           previous += '$' + arg.length + '\r\n' + arg + '\r\n';
+        } else if ('number' === arg_type) {
+          // We can send this in one go.
+          previous += '$' + ('' + arg).length + '\r\n' + arg + '\r\n';
         } else if (null === arg || 'undefined' === arg_type) {
           // Send NIL
           this.stream.write(previous + '$-1\r\n');
@@ -226,7 +244,7 @@ var command_buffers = {};
 
 exports.commands.forEach(function (command) {
   // Pre-alloc buffers for non-multi commands.
-  command_buffers[command] = new Buffer('$' + command.length + '\r\n' + command + '\r\n');
+  command_buffers[command] = new Buffer('*1\r\n$' + command.length + '\r\n' + command + '\r\n');
 
   // Don't override stuff.
   if (!RedisClient.prototype[command.toLowerCase()]) {
