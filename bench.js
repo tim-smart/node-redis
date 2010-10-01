@@ -1,19 +1,25 @@
 var redis  = require('./'),
-    //redis2 = require('redis'),
+    redis2 = require('./bench/node_redis'),
+    redis3 = require('./bench/redis-node'),
+    redis4 = require('./bench/redis-client'),
     Seq    = require('parallel').Sequence,
     assert = require('assert');
 
-var clients = { 'node-redis': redis.createClient(), /*'node_redis': redis2.createClient(),*/ }
+var clients = { 'node-redis': redis.createClient(),  'node_redis':        redis2.createClient(),
+                'redis-node': redis3.createClient(), 'redis-node-client': redis4.createClient() }
 
 var iterations = 10000,
     number     = 10;
 
+//var buffer = new Buffer(Array(1025).join('x'));
+var buffer = 'xxx';
+
 var benches = {
   set: function (client, callback) {
     for (var i = 0; i < iterations - 1; i++) {
-      client.set('bench' + i, 'xxx');
+      client.set('bench' + i, buffer);
     }
-    client.set('bench' + i, 'xxx', callback);
+    client.set('bench' + i, buffer, callback);
   },
   get: function (client, callback) {
     for (var i = 0; i < iterations - 1; i++) {
@@ -29,9 +35,9 @@ var benches = {
   },
   lpush: function (client, callback) {
     for (var i = 0; i < iterations - 1; i++) {
-      client.lpush('bench', 'foo' + i);
+      client.lpush('bench', buffer);
     }
-    client.lpush('bench', 'foo' + i, callback);
+    client.lpush('bench', buffer, callback);
   },
   lrange: function (client, callback) {
     for (var i = 0; i < iterations - 1; i++) {
@@ -39,32 +45,77 @@ var benches = {
     }
     client.lrange('bench', 0, 99, callback);
   },
+  //hmset: function (client, callback) {
+    //if ('redis-node' === client._name) return callback();
+    //for (var i = 0; i < iterations - 1; i++) {
+      //client.hmset('bench' + i, 'key', buffer, 'key2', buffer);
+    //}
+    //client.hmset('bench' + i, 'key', buffer, 'key2', buffer, callback);
+  //},
+  //hmget: function (client, callback) {
+    //if ('redis-node' === client._name) return callback();
+    //for (var i = 0; i < iterations - 1; i++) {
+      //client.hmget('bench' + i, 'key', 'key2');
+    //}
+    //client.hmget('bench' + i, 'key', 'key2', callback);
+  //},
 };
 
-var task = new Seq();
+var task   = new Seq(),
+    warmup = new Seq();
 
 for (var i = 0; i < number; i++) {
   Object.keys(clients).forEach(function (client) {
-    client = clients[client];
-    client.benches = {};
+    clients[client]._name = client;
+    client                = clients[client];
+    client.benches        = {};
 
     Object.keys(benches).forEach(function (bench) {
       client.benches[bench] = [];
 
+      warmup.add(function (next) {
+        benches[bench](client, function (error) {
+          client.flushall(next);
+        });
+      });
+
       task.add(function (next, error) {
         process.stdout.write('.');
         var time = Date.now();
-        benches[bench](client, function () {
+        benches[bench](client, function (error) {
           client.benches[bench].push(Date.now() - time);
           client.flushall(next);
         });
       });
     });
-  });;
+  });
 }
 
+Object.keys(clients).forEach(function (client) {
+  clients[client]._name = client;
+  client                = clients[client];
+  client.benches        = {};
+
+  Object.keys(benches).forEach(function (bench) {
+    client.benches[bench] = [];
+
+    warmup.add(function (next) {
+      benches[bench](client, function (error) {
+        client.flushall(next);
+      });
+    });
+  });
+});;
+
 clients['node-redis'].on('connect', function () {
-  task.run(end);
+  var old_iter = iterations;
+
+  iterations = 100;
+
+  warmup.run(function () {
+    iterations = old_iter;
+    task.run(end);
+  });
 });
 
 var end = function end () {
@@ -108,5 +159,5 @@ var end = function end () {
   }
 
   // Bye!
-  keys.forEach(function (client) { clients[client].end(); });
+  keys.forEach(function (client) { clients[client].quit ? clients[client].quit() : clients[client].end(); });
 };
