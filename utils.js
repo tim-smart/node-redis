@@ -1,7 +1,33 @@
 
 // noop to keep references low.
 exports.noop = function () {};
-  
+
+// Logger function.
+exports.log = function log (error, result) {
+  if (error) return console.error(error);
+
+  var ret;
+
+  if (result instanceof Array) {
+    var result;
+    ret = [];
+
+    for (var i = 0, il = result.length; i < il; i++) {
+      result = result[i];
+
+      if (result instanceof Buffer) {
+        ret.push(result.toString());
+      } else {
+        ret.push(result);
+      }
+    }
+  } else if (result instanceof Buffer) {
+    ret = result.toString();
+  } else ret = result;
+
+  console.log(ret);
+};
+
 // Fast copyBuffer method for small buffers.
 exports.copyBuffer = function copyBuffer (source, target, start, s_start, s_end) {
   s_end || (s_end = source.length);

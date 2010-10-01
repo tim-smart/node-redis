@@ -36,7 +36,7 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
     if ('TYPE' !== this.flag && null !== this.data) {
       // We need to wind back a step.
       // If we have CR now, it would break the parser.
-      if (0 < this.data.length) {
+      if (0 !== this.data.length) {
         char_code = this.data.charCodeAt(this.data.length - 1);
         this.data = this.data.slice(0, -1);
         --pos;
@@ -99,7 +99,8 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
         }
 
         // Otherwise check for CR
-        if (13 === (char_code = buffer[pos])) { // \r CR
+        char_code = buffer[pos];
+        if (13 === char_code) { // \r CR
           // Send the reply.
           if ('SINGLE' === this.flag) {
             this.onData();
@@ -122,12 +123,13 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
 
         // Is the next char the end? Set next char_code while
         // we are at it.
-        if (13 === (char_code = buffer[pos])) { // \r CR
+        char_code = buffer[pos];
+        if (13 === char_code) { // \r CR
           // Cast to int
           this.data = +this.data;
 
           // Null reply?
-          if (0 <= this.data) {
+          if (-1 !== this.data) {
             this.flag      = 'BULK';
             this.last_data = this.data;
             this.data      = null;
@@ -206,7 +208,8 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
 
         // Is the next char the end? Set next char_code while
         // we are at it.
-        if (13 === (char_code = buffer[pos])) { // \r CR
+        char_code = buffer[pos];
+        if (13 === char_code) { // \r CR
           // Cast to int
           this.last_data = +this.data;
           this.data      = null;
@@ -215,11 +218,23 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
           if (null === this.expected) {
             this.expected = this.last_data;
             this.reply    = [];
+          } else if (null === this.multi) {
+            this.multi    = this.expected;
+            this.expected = null;
+            this.replies  = [];
           }
 
           // Skip the \r\n
           pos += 2;
           this.flag = 'TYPE';
+
+          // Zero length replies.
+          if (0 === this.last_data) {
+            this.expected = this.reply = null;
+            this.data     = [];
+            this.onData();
+            break;
+          }
 
           char_code = buffer[pos];
 
@@ -234,7 +249,7 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
             // We need to set char code and data.
             char_code = buffer[pos];
             this.data = '';
-          } else if (char_code) {
+          } else if (null === this.multi && char_code) {
             // Multi trans time.
             this.multi    = this.expected;
             this.expected = null;
@@ -251,7 +266,8 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
 
         // Is the next char the end? Set next char_code while
         // we are at it.
-        if (13 === (char_code = buffer[pos])) { // \r CR
+        char_code = buffer[pos];
+        if (13 === char_code) { // \r CR
           // Cast to int
           this.data = +this.data;
           this.onData();

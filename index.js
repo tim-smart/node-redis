@@ -139,7 +139,7 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
 
     // TODO: Somehow get rid of this - or an alternative.
     for (var i = 0, il = args_length; i < il; i++) {
-      if (args[i] instanceof Buffer) {
+      if ('object' === typeof args[i]) {
         has_buffer = true;
         break;
       }
@@ -170,9 +170,9 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
           previous = ''
         } else {
           // Assume we are a buffer.
-          previous += '$' + buffer.length + '\r\n';
+          previous += '$' + arg.length + '\r\n';
           this.stream.write(previous);
-          this.stream.write(buffer);
+          this.stream.write(arg);
           previous  = '\r\n';
         }
       }
