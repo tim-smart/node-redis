@@ -11,8 +11,8 @@ var clients = { 'node-redis': redis.createClient(),  'node_redis':        redis2
 var iterations = 10000,
     number     = 10;
 
-//var buffer = new Buffer(Array(1025).join('x'));
-var buffer = 'xxx';
+var buffer = new Buffer(Array(1025).join('x'));
+//var buffer = 'xxx';
 
 var benches = {
   set: function (client, callback) {
@@ -64,27 +64,6 @@ var benches = {
 var task   = new Seq(),
     warmup = new Seq();
 
-for (var i = 0; i < number; i++) {
-  Object.keys(clients).forEach(function (client) {
-    clients[client]._name = client;
-    client                = clients[client];
-    client.benches        = {};
-
-    Object.keys(benches).forEach(function (bench) {
-      client.benches[bench] = [];
-
-      task.add(function (next, error) {
-        process.stdout.write('.');
-        var time = Date.now();
-        benches[bench](client, function (error) {
-          client.benches[bench].push(Date.now() - time);
-          client.flushall(next);
-        });
-      });
-    });
-  });
-}
-
 Object.keys(clients).forEach(function (client) {
   clients[client]._name = client;
   client                = clients[client];
@@ -98,8 +77,19 @@ Object.keys(clients).forEach(function (client) {
         client.flushall(next);
       });
     });
+
+    for (var i = 0; i < number; i++) {
+      task.add(function (next, error) {
+        process.stdout.write('.');
+        var time = Date.now();
+        benches[bench](client, function (error) {
+          client.benches[bench].push(Date.now() - time);
+          client.flushall(next);
+        });
+      });
+    }
   });
-});;
+});
 
 clients['node-redis'].on('connect', function () {
   var old_iter = iterations;
