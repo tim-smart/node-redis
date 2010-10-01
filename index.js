@@ -134,12 +134,14 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
 
   if (args && 0 < (args_length = args.length)) {
     var arg, arg_type,
+        arg_types  = Array(args_length),
         previous   = '*' + (args_length + 1) + '\r\n' + '$' + command.length + '\r\n' + command + '\r\n',
         has_buffer = false;
 
     // TODO: Somehow get rid of this - or an alternative.
     for (var i = 0, il = args_length; i < il; i++) {
-      if ('object' === typeof args[i]) {
+      arg_type = arg_types[i] = typeof args[i];
+      if ('object' === arg_type) {
         has_buffer = true;
         break;
       }
@@ -156,7 +158,7 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
     } else {
       for (i = 0, il = args_length; i < il; i++) {
         arg      = args[i];
-        arg_type = typeof arg;
+        arg_type = arg_types[i] || typeof arg;
 
         if ('string' === arg_type) {
           // We can send this in one go.
