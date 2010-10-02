@@ -9,7 +9,7 @@ var clients = { 'node-redis': redis.createClient(),  'node_redis':        redis2
                 'redis-node': redis3.createClient(), 'redis-node-client': redis4.createClient() }
 
 var iterations = 7500,
-    number     = 10;
+    number     = 3;
 
 //var buffer = require('fs').readFileSync('binary');
 //var buffer = new Buffer(Array(1025).join('x'));
