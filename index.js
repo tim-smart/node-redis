@@ -164,54 +164,33 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
 
   if (args && 0 < (args_length = args.length)) {
     var arg, arg_type,
-        arg_types  = Array(args_length),
-        previous   = '*' + (args_length + 1) + '\r\n' + '$' + command.length + '\r\n' + command + '\r\n',
-        has_buffer = false;
+        previous   = '*' + (args_length + 1) + '\r\n' + '$' + command.length + '\r\n' + command + '\r\n';
 
-    // TODO: Somehow get rid of this - or an alternative.
-    for (var i = 0, il = args_length; i < il; i++) {
-      arg_type = arg_types[i] = typeof args[i];
-      if ('object' === arg_type) {
-        has_buffer = true;
-        break;
-      }
-    }
+    for (i = 0, il = args_length; i < il; i++) {
+      arg      = args[i];
+      arg_type = typeof arg;
 
-    // Send the args. Send as much we can in one go.
-    if (false === has_buffer) {
-      for (i = 0, il = args_length; i < il; i++) {
-        arg       = '' + args[i];
+      if ('string' === arg_type) {
+        // We can send this in one go.
         previous += '$' + arg.length + '\r\n' + arg + '\r\n';
+      } else if ('number' === arg_type) {
+        // We can send this in one go.
+        previous += '$' + ('' + arg).length + '\r\n' + arg + '\r\n';
+      } else if (null === arg || 'undefined' === arg_type) {
+        // Send NIL
+        this.write(previous + '$0\r\n\r\n');
+        previous = '';
+      } else {
+        // Assume we are a buffer.
+        previous += '$' + arg.length + '\r\n';
+        this.write(previous);
+        this.write(arg);
+        previous  = '\r\n';
       }
-
-      this.write(previous);
-    } else {
-      for (i = 0, il = args_length; i < il; i++) {
-        arg      = args[i];
-        arg_type = arg_types[i] || typeof arg;
-
-        if ('string' === arg_type) {
-          // We can send this in one go.
-          previous += '$' + arg.length + '\r\n' + arg + '\r\n';
-        } else if ('number' === arg_type) {
-          // We can send this in one go.
-          previous += '$' + ('' + arg).length + '\r\n' + arg + '\r\n';
-        } else if (null === arg || 'undefined' === arg_type) {
-          // Send NIL
-          this.write(previous + '$0\r\n\r\n');
-          previous = '';
-        } else {
-          // Assume we are a buffer.
-          previous += '$' + arg.length + '\r\n';
-          this.write(previous);
-          this.write(arg);
-          previous  = '\r\n';
-        }
-      }
-
-      // Anything left?
-      this.write(previous);
     }
+
+    // Anything left?
+    this.write(previous);
   } else {
     // We are just sending a stand alone command.
     this.write(command_buffers[command]);
