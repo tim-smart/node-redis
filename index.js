@@ -1,5 +1,5 @@
 var net    = require('net'),
-    utils  = require('./utils'),
+    utils  = require('./util'),
     Parser = require('./parser');
 
 var RedisClient = function RedisClient(port, host) {
