@@ -160,5 +160,5 @@ var end = function end () {
   }
 
   // Bye!
-  keys.forEach(function (client) { clients[client].quit ? clients[client].quit() : clients[client].end(); });
+  process.exit();
 };

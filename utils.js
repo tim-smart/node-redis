@@ -62,33 +62,30 @@ var toArray = exports.toArray = function toArray (args) {
 // Queue class adapted from Tim Caswell's pattern library
 // http://github.com/creationix/pattern/blob/master/lib/pattern/queue.js
 var Queue = function () {
-  this.tail   = [];
-  this.head   = toArray(arguments);
+  this.array = Array.prototype.slice.call(arguments);
   this.offset = 0;
 };
 
 exports.Queue = Queue;
 
 Queue.prototype.shift = function () {
-  if (this.offset === this.head.length) {
-    var tmp = this.head;
-    tmp.length = 0;
-    this.head = this.tail;
-    this.tail = tmp;
-    this.offset = 0;
-    if (this.head.length === 0) {
-      return;
-    }
+  if (this.array.length === 0) return;
+  var ret = this.array[this.offset];
+  this.array[this.offset++] = undefined;
+  if (this.offset === this.array.length) {
+    this.array.length = 0;
+    this.offset       = 0;
   }
-  return this.head[this.offset++];
-};
+  return ret;
+}
 
 Queue.prototype.push = function (item) {
-  return this.tail.push(item);
+  return this.array.push(item);
 };
 
-Queue.prototype.toArray = function () {
-    var array = this.head.slice(this.offset);
-    array.push.apply(array, this.tail);
-    return array;
-};
+Object.defineProperty(Queue.prototype, 'length', {
+  get: function () {
+    return this.array.length;
+  }
+});
+;

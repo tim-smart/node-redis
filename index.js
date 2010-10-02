@@ -3,6 +3,8 @@ var net    = require('net'),
     Parser = require('./parser');
 
 var RedisClient = function RedisClient(port, host) {
+  this.port           = port;
+  this.host           = host;
   this.stream         = net.createConnection(port, host);;
   this.connected      = false;
   // Command queue.
@@ -22,17 +24,18 @@ var RedisClient = function RedisClient(port, host) {
 
   this.stream.on("connect", function () {
     // Reset the retry backoff.
-    self.retry       = false;
-    self.retry_delay = 250;
+    self.retry          = false;
+    self.retry_delay    = 250;
+    self.retry_attempts = 0;
     self.stream.setNoDelay();
     self.stream.setTimeout(0);
-    self.connected   = true;
+    self.connected      = true;
 
     // Resend commands if we need to.
     var command,
-        commands = self.commands.toArray();
+        commands = self.commands.array;
 
-    self.commands  = new utils.Queue();
+    self.commands = new utils.Queue();
 
     for (var i = 0, il = commands.length; i < il; i++) {
       command = commands[i];
@@ -69,17 +72,18 @@ var RedisClient = function RedisClient(port, host) {
     self.emit("error", error);
   });
 
-  this.stream.on("close", function () {
-    // Reset the parser state
-    this.parser.resetState();
-
+  var onClose = function onClose () {
     // Ignore if we are already retrying. Or we want to quit.
     if (self.retry) return;
+    self.emit('end');
     self.emit('close');
     if (self.quitting) return;
 
     self.onDisconnect();
-  });
+  };
+
+  this.stream.on("end", onClose);
+  this.stream.on("close", onClose);
 
   // Setup the parser.
   this.parser = new Parser();
