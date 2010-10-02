@@ -3,17 +3,17 @@
 exports.noop = function () {};
 
 // Logger function.
-exports.log = function log (error, result) {
+exports.log = function log (error, results) {
   if (error) return console.error(error);
 
   var ret;
 
-  if (result instanceof Array) {
+  if (results instanceof Array) {
     var result;
     ret = [];
 
-    for (var i = 0, il = result.length; i < il; i++) {
-      result = result[i];
+    for (var i = 0, il = results.length; i < il; i++) {
+      result = results[i];
 
       if (result instanceof Buffer) {
         ret.push(result.toString());
@@ -21,9 +21,9 @@ exports.log = function log (error, result) {
         ret.push(result);
       }
     }
-  } else if (result instanceof Buffer) {
-    ret = result.toString();
-  } else ret = result;
+  } else if (results instanceof Buffer) {
+    ret = results.toString();
+  } else ret = results;
 
   console.log(ret);
 };

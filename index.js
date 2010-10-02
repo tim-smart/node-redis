@@ -244,9 +244,16 @@ exports.commands.forEach(function (command) {
 
   // Don't override stuff.
   if (!RedisClient.prototype[command.toLowerCase()]) {
-    RedisClient.prototype[command.toLowerCase()] = function () {
-      var args     = utils.toArray(arguments),
-          callback = typeof args[args.length - 1] === 'function';
+    RedisClient.prototype[command.toLowerCase()] = function (array, fn) {
+      // An array of args.
+      // Assume we only have two args.
+      if (array instanceof Array) {
+        return this.sendCommand(command, array, fn);
+      }
+
+      // Arbitary amount of arguments.
+      callback = typeof arguments[arguments.length - 1] === 'function';
+      args     = utils.toArray(arguments);
 
       if (true === callback) {
         callback = args.pop();
