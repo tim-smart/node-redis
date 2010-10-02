@@ -8,11 +8,12 @@ var redis  = require('./'),
 var clients = { 'node-redis': redis.createClient(),  'node_redis':        redis2.createClient(),
                 'redis-node': redis3.createClient(), 'redis-node-client': redis4.createClient() }
 
-var iterations = 10000,
-    number     = 5;
+var iterations = 7500,
+    number     = 10;
 
-var buffer = new Buffer(Array(1025).join('x'));
-//var buffer = 'xxx';
+//var buffer = require('fs').readFileSync('binary');
+//var buffer = new Buffer(Array(1025).join('x'));
+var buffer = 'Some some random text for the benchmark.';
 
 var benches = {
   set: function (client, callback) {

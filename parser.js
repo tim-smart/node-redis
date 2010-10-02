@@ -14,7 +14,6 @@ RedisParser.prototype = Object.create(process.EventEmitter.prototype);
 
 // Reset state, no matter where we are at.
 RedisParser.prototype.resetState = function resetState () {
-  this.buffer    = null;
   this.reply     = null;
   this.expected  = null;
   this.multi     = null;
@@ -23,6 +22,7 @@ RedisParser.prototype.resetState = function resetState () {
   this.flag      = 'TYPE';
   this.data      = null;
   this.last_data = null;
+  this.remaining = null;
 };
 
 // Handle an incoming buffer.
@@ -32,7 +32,7 @@ RedisParser.prototype.onIncoming = function onIncoming (buffer) {
       length = buffer.length;
 
   // Make sure the buffer is joint properly.
-  if ('TYPE' !== this.flag && null !== this.data) {
+  if ('TYPE' !== this.flag && 'BULK' !== this.flag && null !== this.data) {
     // We need to wind back a step.
     // If we have CR now, it would break the parser.
     if (0 !== this.data.length) {
@@ -144,9 +144,9 @@ RedisParser.prototype.onIncoming = function onIncoming (buffer) {
 
     // Short bulk reply.
     case 'BULK':
-      if (null === this.buffer && length >= (pos + this.last_data)) {
+      if (null === this.data && length >= (pos + this.last_data)) {
         // Slow slice is slow.
-        if (15 > this.last_data) {
+        if (14 > this.last_data) {
           this.data = new Buffer(this.last_data);
           for (var i = 0; i < this.last_data; i++) {
             this.data[i] = buffer[i + pos];
@@ -155,46 +155,53 @@ RedisParser.prototype.onIncoming = function onIncoming (buffer) {
           this.data = buffer.slice(pos, this.last_data + pos);
         }
 
-        this.onData();
-
-        // Push back data.
+        // Fast forward past data.
         pos += this.last_data + 2;
-      } else if (null !== this.buffer) {
+
+        // Send it off.
+        this.onData();
+      } else if (this.data) {
         // Still joining. pos = amount left to go.
-        if (pos <= length) {
-          if (15 > this.last_data) {
-            utils.copyBuffer(buffer, this.buffer, this.last_data - pos, 0, pos);
+        if (this.remaining <= length) {
+          // End is within this buffer.
+          if (13 < this.remaining) {
+            buffer.copy(this.data, this.last_data - this.remaining, 0, this.remaining)
           } else {
-            buffer.copy(this.buffer, this.last_data - pos, 0, pos)
+            utils.copyBuffer(buffer, this.data, this.last_data - this.remaining, 0, this.remaining);
           }
 
-          this.data   = this.buffer;
-          this.buffer = null;
-          this.pos    = null;
+          // Fast forward past data.
+          pos = this.remaining + 2;
+          this.remaining = null;
 
           this.onData();
-          pos += 2;
         } else {
-          if (15 > this.last_data) {
-            utils.copyBuffer(buffer, this.buffer, 0, 0);
+          // We have more to come. Copy what we got then move on,
+          // decrementing the amount we have copied from this.remaining
+          if (13 < (this.remaining - length)) {
+            utils.copyBuffer(buffer, this.data, this.last_data - this.remaining, 0, length);
           } else {
-            buffer.copy(this.buffer, 0, 0);
+            buffer.copy(this.data, this.last_data - this.remaining, 0, length);
           }
 
           // More to go.
-          pos = (this.last_data - (length - pos)) + length;
+          this.remaining -= length;
+          pos             = length;
         }
       } else {
         // We will have to do a join.
-        this.buffer = new Buffer(this.last_data);
+        this.data = new Buffer(this.last_data);
+
+        // Fast copy if small.
         if (15 > this.last_data) {
-          utils.copyBuffer(buffer, this.buffer, 0, pos);
+          utils.copyBuffer(buffer, this.data, 0, pos);
         } else {
-          buffer.copy(this.buffer, 0, pos)
+          buffer.copy(this.data, 0, pos)
         }
 
         // Point pos to the amount we need.
-        pos = (this.last_data - (length - pos)) + length;
+        this.remaining = this.last_data - (length - pos);
+        pos            = length;
       }
       break;
 

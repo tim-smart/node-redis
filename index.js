@@ -14,6 +14,9 @@ var RedisClient = function RedisClient(port, host) {
   this.retry_backoff  = 1.7;
   // If we want to quit.
   this.quitting       = false;
+  // For when we have a full send buffer.
+  this.paused         = false;
+  this.send_buffer    = [];
 
   var self = this;
 
@@ -48,6 +51,18 @@ var RedisClient = function RedisClient(port, host) {
       // Reset state.
       self.parser.resetState();
     }
+  });
+
+  // When we can write more.
+  this.stream.on('drain', function () {
+    for (var i = 0, il = self.send_buffer.length; i < il; i++) {
+      if (false === self.stream.write(self.send_buffer[i])) {
+        return self.send_buffer = self.send_buffer.slice(i + 1);
+      }
+    }
+
+    self.send_buffer.length = 0;
+    self.paused = false;
   });
 
   this.stream.on("error", function (error) {
@@ -117,6 +132,17 @@ RedisClient.prototype.onDisconnect = function (error) {
   this.retry        = true;
 };
 
+// We use this so we can watch for a full send buffer.
+RedisClient.prototype.write = function write (data) {
+  if (false === this.paused) {
+    if (false === this.stream.write(data)) {
+      this.paused = true;
+    }
+  } else {
+    this.send_buffer.push(data);
+  }
+};
+
 // We make some assumptions:
 //
 // * command WILL be uppercase and valid.
@@ -150,11 +176,11 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
     // Send the args. Send as much we can in one go.
     if (false === has_buffer) {
       for (i = 0, il = args_length; i < il; i++) {
-        arg = '' + args[i];
+        arg       = '' + args[i];
         previous += '$' + arg.length + '\r\n' + arg + '\r\n';
       }
 
-      this.stream.write(previous);
+      this.write(previous);
     } else {
       for (i = 0, il = args_length; i < il; i++) {
         arg      = args[i];
@@ -168,25 +194,23 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
           previous += '$' + ('' + arg).length + '\r\n' + arg + '\r\n';
         } else if (null === arg || 'undefined' === arg_type) {
           // Send NIL
-          this.stream.write(previous + '$0\r\n\r\n');
+          this.write(previous + '$0\r\n\r\n');
           previous = '';
         } else {
           // Assume we are a buffer.
           previous += '$' + arg.length + '\r\n';
-          this.stream.write(previous);
-          this.stream.write(arg);
+          this.write(previous);
+          this.write(arg);
           previous  = '\r\n';
         }
       }
 
       // Anything left?
-      if ('' !== previous) {
-        this.stream.write(previous);
-      }
+      this.write(previous);
     }
   } else {
     // We are just sending a stand alone command.
-    this.stream.write(command_buffers[command]);
+    this.write(command_buffers[command]);
   }
 };
 
