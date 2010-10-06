@@ -14,6 +14,7 @@ var iterations = 7500,
 //var buffer = require('fs').readFileSync('binary');
 //var buffer = new Buffer(Array(1025 * 2).join('x'));
 var buffer = 'Some some random text for the benchmark.';
+//var buffer = 'xxx';
 
 var benches = {
   set: function (client, callback) {
@@ -34,18 +35,18 @@ var benches = {
     }
     client.del('bench' + i, callback);
   },
-  lpush: function (client, callback) {
-    for (var i = 0; i < iterations - 1; i++) {
-      client.lpush('bench', buffer);
-    }
-    client.lpush('bench', buffer, callback);
-  },
-  lrange: function (client, callback) {
-    for (var i = 0; i < iterations - 1; i++) {
-      client.lrange('bench', 0, 99);
-    }
-    client.lrange('bench', 0, 99, callback);
-  },
+  //lpush: function (client, callback) {
+    //for (var i = 0; i < iterations - 1; i++) {
+      //client.lpush('bench', buffer);
+    //}
+    //client.lpush('bench', buffer, callback);
+  //},
+  //lrange: function (client, callback) {
+    //for (var i = 0; i < iterations - 1; i++) {
+      //client.lrange('bench', 0, 99);
+    //}
+    //client.lrange('bench', 0, 99, callback);
+  //},
   //hmset: function (client, callback) {
     //if ('redis-node' === client._name) return callback();
     //for (var i = 0; i < iterations - 1; i++) {
@@ -79,13 +80,13 @@ Object.keys(clients).forEach(function (client) {
         var time = Date.now();
         benches[bench](client, function (error) {
           client.benches[bench].push(Date.now() - time);
-          client.del('bench', next);
+          next();
         });
       });
     });
 
     task.add(function (next) {
-      client.del('bench', next);
+      client.flushall(next);
     });
   }
 });
@@ -98,10 +99,12 @@ Object.keys(clients).forEach(function (client) {
     client.benches[bench] = [];
 
     warmup.add(function (next) {
-      benches[bench](client, function (error) {
-        client.del('bench', next);
-      });
+      client.flushall(next);
     });
+  });
+
+  warmup.add(function (next) {
+    clients['node-redis'].del('bench', next);
   });
 });
 
