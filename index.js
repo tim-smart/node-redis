@@ -1,5 +1,5 @@
 var net    = require('net'),
-    utils  = require('./util'),
+    utils  = require('./utils'),
     Parser = require('./parser');
 
 var RedisClient = function RedisClient(port, host) {
@@ -19,6 +19,7 @@ var RedisClient = function RedisClient(port, host) {
   // For when we have a full send buffer.
   this.paused         = false;
   this.send_buffer    = [];
+  this.writing        = false;
 
   var self = this;
 
@@ -56,6 +57,19 @@ var RedisClient = function RedisClient(port, host) {
     }
   });
 
+  // _write
+  // So we can pipeline requests.
+  this._write = function () {
+    for (var i = 0, il = self.send_buffer.length; i < il; i++) {
+      if (false === self.stream.write(self.send_buffer[i])) {
+        return self.send_buffer = self.send_buffer.slice(i + 1);
+      }
+    }
+
+    self.send_buffer.length = 0;
+    self.writing = false;
+  };
+
   // When we can write more.
   this.stream.on('drain', function () {
     for (var i = 0, il = self.send_buffer.length; i < il; i++) {
@@ -65,7 +79,7 @@ var RedisClient = function RedisClient(port, host) {
     }
 
     self.send_buffer.length = 0;
-    self.paused = false;
+    self.paused = self.writing = false;
   });
 
   this.stream.on("error", function (error) {
@@ -138,12 +152,12 @@ RedisClient.prototype.onDisconnect = function (error) {
 
 // We use this so we can watch for a full send buffer.
 RedisClient.prototype.write = function write (data) {
-  if (false === this.paused) {
-    if (false === this.stream.write(data)) {
-      this.paused = true;
-    }
-  } else {
-    this.send_buffer.push(data);
+  // Join commands.
+  this.send_buffer.push(data);
+
+  if (!this.writing) {
+    process.nextTick(this._write);
+    this.writing = true;
   }
 };
 
@@ -163,8 +177,16 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
   var args_length;
 
   if (args && 0 < (args_length = args.length)) {
-    var arg, arg_type,
-        previous   = '*' + (args_length + 1) + '\r\n' + '$' + command.length + '\r\n' + command + '\r\n';
+    var arg, arg_type, last,
+        previous = '';
+
+    if (last = this.send_buffer[this.send_buffer.length - 1]) {
+      if ('string' === typeof last) {
+        previous = this.send_buffer.pop();
+      }
+    }
+
+    previous += '*' + (args_length + 1) + '\r\n' + '$' + command.length + '\r\n' + command + '\r\n';
 
     for (i = 0, il = args_length; i < il; i++) {
       arg      = args[i];

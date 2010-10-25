@@ -1,4 +1,4 @@
-var utils = require('./util');
+var utils = require('./utils');
 
 var RedisParser = function RedisParser () {
   this.resetState();
