@@ -8,7 +8,7 @@ var RedisClient = function RedisClient(port, host) {
   this.stream         = net.createConnection(port, host);;
   this.connected      = false;
   // Command queue.
-  this.max_size       = 40000;
+  this.max_size       = 500;
   this.command        = '';
   this.commands       = new utils.Queue();
   // For the retry timer.
@@ -21,7 +21,7 @@ var RedisClient = function RedisClient(port, host) {
   // For when we have a full send buffer.
   this.paused         = false;
   this.send_buffer    = [];
-  this.writing        = false;
+  this.flushing       = false;
 
   var self = this;
 
@@ -61,7 +61,7 @@ var RedisClient = function RedisClient(port, host) {
 
   // _write
   // So we can pipeline requests.
-  this._write = function () {
+  this._flush = function () {
     if ('' !== self.command) {
       self.send_buffer.push(self.command);
       self.command = '';
@@ -74,11 +74,11 @@ var RedisClient = function RedisClient(port, host) {
     }
 
     self.send_buffer.length = 0;
-    self.paused = self.writing = false;
+    self.paused = self.flushing = false;
   };
 
   // When we can write more.
-  this.stream.on('drain', this._write);
+  this.stream.on('drain', this._flush);
 
   this.stream.on("error", function (error) {
     self.emit("error", error);
@@ -148,25 +148,35 @@ RedisClient.prototype.onDisconnect = function (error) {
   this.retry        = true;
 };
 
+RedisClient.prototype._write = function (data) {
+  if (!this.paused) {
+    if (false === this.stream.write(data)) {
+      this.paused = true;
+    }
+  } else {
+    this.send_buffer.push(this.command);
+  }
+};
+
 // We use this so we can watch for a full send buffer.
 RedisClient.prototype.write = function write (data, buffer) {
   if (true !== buffer) {
     this.command += data;
     if (this.max_size <= this.command.length) {
-      this.send_buffer.push(this.command);
+      this._write(this.command);
       this.command = '';
     }
   } else {
     if ('' !== this.command) {
-      this.send_buffer.push(this.command);
+      this._write(this.command);
       this.command = '';
     }
-    this.send_buffer.push(data);
+    this._write(data);
   }
 
-  if (!this.writing) {
-    process.nextTick(this._write);
-    this.writing = true;
+  if (!this.flushing) {
+    process.nextTick(this._flush);
+    this.flushing = true;
   }
 };
 
