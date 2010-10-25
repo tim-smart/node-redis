@@ -8,6 +8,8 @@ var RedisClient = function RedisClient(port, host) {
   this.stream         = net.createConnection(port, host);;
   this.connected      = false;
   // Command queue.
+  this.max_size       = 40000;
+  this.command        = '';
   this.commands       = new utils.Queue();
   // For the retry timer.
   this.retry          = false;
@@ -60,18 +62,11 @@ var RedisClient = function RedisClient(port, host) {
   // _write
   // So we can pipeline requests.
   this._write = function () {
-    for (var i = 0, il = self.send_buffer.length; i < il; i++) {
-      if (false === self.stream.write(self.send_buffer[i])) {
-        return self.send_buffer = self.send_buffer.slice(i + 1);
-      }
+    if ('' !== self.command) {
+      self.send_buffer.push(self.command);
+      self.command = '';
     }
 
-    self.send_buffer.length = 0;
-    self.writing = false;
-  };
-
-  // When we can write more.
-  this.stream.on('drain', function () {
     for (var i = 0, il = self.send_buffer.length; i < il; i++) {
       if (false === self.stream.write(self.send_buffer[i])) {
         return self.send_buffer = self.send_buffer.slice(i + 1);
@@ -80,7 +75,10 @@ var RedisClient = function RedisClient(port, host) {
 
     self.send_buffer.length = 0;
     self.paused = self.writing = false;
-  });
+  };
+
+  // When we can write more.
+  this.stream.on('drain', this._write);
 
   this.stream.on("error", function (error) {
     self.emit("error", error);
@@ -151,9 +149,20 @@ RedisClient.prototype.onDisconnect = function (error) {
 };
 
 // We use this so we can watch for a full send buffer.
-RedisClient.prototype.write = function write (data) {
-  // Join commands.
-  this.send_buffer.push(data);
+RedisClient.prototype.write = function write (data, buffer) {
+  if (true !== buffer) {
+    this.command += data;
+    if (this.max_size <= this.command.length) {
+      this.send_buffer.push(this.command);
+      this.command = '';
+    }
+  } else {
+    if ('' !== this.command) {
+      this.send_buffer.push(this.command);
+      this.command = '';
+    }
+    this.send_buffer.push(data);
+  }
 
   if (!this.writing) {
     process.nextTick(this._write);
@@ -178,15 +187,7 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
 
   if (args && 0 < (args_length = args.length)) {
     var arg, arg_type, last,
-        previous = '';
-
-    if (last = this.send_buffer[this.send_buffer.length - 1]) {
-      if ('string' === typeof last) {
-        previous = this.send_buffer.pop();
-      }
-    }
-
-    previous += '*' + (args_length + 1) + '\r\n' + '$' + command.length + '\r\n' + command + '\r\n';
+        previous = '*' + (args_length + 1) + '\r\n' + '$' + command.length + '\r\n' + command + '\r\n';
 
     for (i = 0, il = args_length; i < il; i++) {
       arg      = args[i];
@@ -206,7 +207,7 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
         // Assume we are a buffer.
         previous += '$' + arg.length + '\r\n';
         this.write(previous);
-        this.write(arg);
+        this.write(arg, true);
         previous  = '\r\n';
       }
     }
