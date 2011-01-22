@@ -154,7 +154,7 @@ RedisClient.prototype._write = function (data) {
       this.paused = true;
     }
   } else {
-    this.send_buffer.push(this.command);
+    this.send_buffer.push(data);
   }
 };
 
