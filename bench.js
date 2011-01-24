@@ -1,18 +1,19 @@
 var redis  = require('./'),
-    redis2 = require('./bench/node_redis'),
-    redis3 = require('./bench/redis-node/redis'),
-    redis4 = require('./bench/redis-client'),
+    redis2 = require('redis'),
+    //redis3 = require('./bench/redis-node/redis'),
+    //redis4 = require('./bench/redis-client'),
     Seq    = require('parallel').Sequence,
     assert = require('assert');
 
 var clients = { 'node-redis': redis.createClient(),  'node_redis':        redis2.createClient(),
-                'redis-node': redis3.createClient(), 'redis-node-client': redis4.createClient() }
+                /*'redis-node': redis3.createClient(), 'redis-node-client': redis4.createClient()*/ }
 
-var iterations = 7500,
+var iterations = 5000,
     number     = 3;
 
 //var buffer = require('fs').readFileSync('binary');
 var buffer = new Buffer(Array(1025 * 2).join('x'));
+//var buffer = Array(1025 * 2).join('x');
 //var buffer = 'Some some random text for the benchmark.';
 //var buffer = 'xxx';
 
@@ -35,32 +36,32 @@ var benches = {
     }
     client.del('bench' + i, callback);
   },
-  //lpush: function (client, callback) {
-    //for (var i = 0; i < iterations - 1; i++) {
-      //client.lpush('bench', buffer);
-    //}
-    //client.lpush('bench', buffer, callback);
-  //},
-  //lrange: function (client, callback) {
-    //for (var i = 0; i < iterations - 1; i++) {
-      //client.lrange('bench', 0, 99);
-    //}
-    //client.lrange('bench', 0, 99, callback);
-  //},
-  //hmset: function (client, callback) {
-    //if ('redis-node' === client._name) return callback();
-    //for (var i = 0; i < iterations - 1; i++) {
-      //client.hmset('bench' + i, 'key', buffer, 'key2', buffer);
-    //}
-    //client.hmset('bench' + i, 'key', buffer, 'key2', buffer, callback);
-  //},
-  //hmget: function (client, callback) {
-    //if ('redis-node' === client._name) return callback();
-    //for (var i = 0; i < iterations - 1; i++) {
-      //client.hmget('bench' + i, 'key', 'key2');
-    //}
-    //client.hmget('bench' + i, 'key', 'key2', callback);
-  //},
+  lpush: function (client, callback) {
+    for (var i = 0; i < iterations - 1; i++) {
+      client.lpush('bench', buffer);
+    }
+    client.lpush('bench', buffer, callback);
+  },
+  lrange: function (client, callback) {
+    for (var i = 0; i < iterations - 1; i++) {
+      client.lrange('bench', 0, 99);
+    }
+    client.lrange('bench', 0, 99, callback);
+  },
+  hmset: function (client, callback) {
+    if ('redis-node' === client._name) return callback();
+    for (var i = 0; i < iterations - 1; i++) {
+      client.hmset('bench' + i, 'key', buffer, 'key2', buffer);
+    }
+    client.hmset('bench' + i, 'key', buffer, 'key2', buffer, callback);
+  },
+  hmget: function (client, callback) {
+    if ('redis-node' === client._name) return callback();
+    for (var i = 0; i < iterations - 1; i++) {
+      client.hmget('bench' + i, 'key', 'key2');
+    }
+    client.hmget('bench' + i, 'key', 'key2', callback);
+  },
 };
 
 var task   = new Seq(),
