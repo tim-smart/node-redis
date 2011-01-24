@@ -2,9 +2,9 @@ var net    = require('net'),
     utils  = require('./utils'),
     Parser = require('./parser');
 
-var RedisClient = function RedisClient(port, host) {
-  this.port           = port;
+var RedisClient = function RedisClient(host, port) {
   this.host           = host;
+  this.port           = port;
   this.stream         = net.createConnection(port, host);;
   this.connected      = false;
   // Command queue.
