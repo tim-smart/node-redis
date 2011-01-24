@@ -235,6 +235,10 @@ RedisClient.prototype.quit = RedisClient.prototype.end = function () {
   return this.sendCommand('QUIT');
 };
 
+RedisClient.prototype.destroy = function () {
+  return this.stream.destroy();
+};
+
 // http://code.google.com/p/redis/wiki/CommandReference
 exports.commands = [
   // Connection handling
