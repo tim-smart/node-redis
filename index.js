@@ -236,6 +236,7 @@ RedisClient.prototype.quit = RedisClient.prototype.end = function () {
 };
 
 RedisClient.prototype.destroy = function () {
+  this.quitting = true;
   return this.stream.destroy();
 };
 
