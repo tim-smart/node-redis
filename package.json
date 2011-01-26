@@ -10,5 +10,6 @@
     "type": "git",
     "url": "http://github.com/Tim-Smart/node-redis.git"
   },
-  "engine": [ "node >=0.2.2" ]
+  "engine": [ "node >=0.2.2" ],
+  "main": "./"
 }
