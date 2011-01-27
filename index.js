@@ -36,7 +36,9 @@ var RedisClient = function RedisClient(port, host, auth) {
     self.connected      = true;
 
     // Send auth.
-    self.sendCommand('AUTH', [self.auth], null);
+    if (self.auth) {
+      self.sendCommand('AUTH', [self.auth], null);
+    }
 
     // Resend commands if we need to.
     var command,
