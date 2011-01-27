@@ -35,14 +35,14 @@ var RedisClient = function RedisClient(port, host, auth) {
     self.stream.setTimeout(0);
     self.connected      = true;
 
-    // Send auth.
-    if (self.auth) {
-      self.sendCommand('AUTH', [self.auth], null);
-    }
-
     // Resend commands if we need to.
     var command,
-        commands = self.commands.array;
+        commands = self.commands.array.slice(self.commands.offset);
+
+    // Send auth.
+    if (self.auth) {
+      commands.unshift(['AUTH', [self.auth], null]);
+    }
 
     self.commands = new utils.Queue();
 
@@ -130,8 +130,8 @@ RedisClient.prototype = Object.create(process.EventEmitter.prototype);
 exports.RedisClient = RedisClient;
 
 // createClient
-exports.createClient = function createClient (port, host) {
-  return new RedisClient(port || 6379, host);
+exports.createClient = function createClient (port, host, auth) {
+  return new RedisClient(port || 6379, host, auth);
 };
 
 RedisClient.prototype.onDisconnect = function (error) {
@@ -309,3 +309,4 @@ exports.commands.forEach(function (command) {
     };
   }
 });
+

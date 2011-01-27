@@ -1,4 +1,4 @@
-var c      = require('../').createClient(),
+var c      = require('../').createClient(null, null, 'test'),
     assert = require('assert');
 
 var buffer = new Buffer(new Array(1025).join('x'));
