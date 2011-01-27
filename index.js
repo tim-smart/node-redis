@@ -2,9 +2,10 @@ var net    = require('net'),
     utils  = require('./utils'),
     Parser = require('./parser');
 
-var RedisClient = function RedisClient(port, host) {
+var RedisClient = function RedisClient(port, host, auth) {
   this.host           = host;
   this.port           = port;
+  this.auth           = auth;
   this.stream         = net.createConnection(port, host);;
   this.connected      = false;
   // Command queue.
@@ -33,6 +34,9 @@ var RedisClient = function RedisClient(port, host) {
     self.stream.setNoDelay();
     self.stream.setTimeout(0);
     self.connected      = true;
+
+    // Send auth.
+    self.sendCommand('AUTH', [self.auth], null);
 
     // Resend commands if we need to.
     var command,
