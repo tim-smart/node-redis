@@ -291,7 +291,7 @@ exports.commands.forEach(function (command) {
     RedisClient.prototype[command.toLowerCase()] = function (array, fn) {
       // An array of args.
       // Assume we only have two args.
-      if (array instanceof Array) {
+      if (Array.isArray(array)) {
         return this.sendCommand(command, array, fn);
       }
 
