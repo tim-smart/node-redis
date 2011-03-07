@@ -1,7 +1,7 @@
 {
   "name": "node-redis",
   "description": "Lightweight, fast, Redis client.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "Tim Smart",
   "contributors": [
     "Matt Ranney"

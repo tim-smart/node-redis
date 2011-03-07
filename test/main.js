@@ -30,14 +30,14 @@ module.exports = {
     var n = 0,
         o = 0;
 
-    for (var i = 0; i < 10000; i++) {
+    for (var i = 0; i < 100000; i++) {
       c.set('2' + i, buffer, function (error) {
         assert.ok(!error);
         ++n;
       });
     }
 
-    for (i = 0; i < 10000; i++) {
+    for (i = 0; i < 100000; i++) {
       c.del('2' + i, function (error) {
         assert.ok(!error);
         ++o;
@@ -45,8 +45,8 @@ module.exports = {
     }
 
     beforeExit(function () {
-      assert.equal(n, 10000);
-      assert.equal(o, 10000);
+      assert.equal(n, 100000);
+      assert.equal(o, 100000);
     });
   },
   after: function () {

@@ -74,7 +74,7 @@ var RedisClient = function RedisClient(port, host, auth) {
     }
 
     for (var i = 0, il = self.send_buffer.length; i < il; i++) {
-      if (false === self.stream.write(self.send_buffer[i])) {
+      if (!self.stream.writable || false === self.stream.write(self.send_buffer[i])) {
         return self.send_buffer = self.send_buffer.slice(i + 1);
       }
     }
@@ -108,14 +108,14 @@ var RedisClient = function RedisClient(port, host, auth) {
 
   this.parser.on('reply', function (reply) {
     var command = self.commands.shift();
-    if (command[2]) command[2](null, reply);
+    if (command && command[2]) command[2](null, reply);
   });
 
   // DB error
   this.parser.on('error', function (error) {
     var command = self.commands.shift();
     error = new Error(error);
-    if (command[2]) command[2](error);
+    if (command && command[2]) command[2](error);
     else self.emit('error', error);
   });
 
@@ -211,7 +211,7 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
 
       if ('string' === arg_type) {
         // We can send this in one go.
-        previous += '$' + arg.length + '\r\n' + arg + '\r\n';
+        previous += '$' + Buffer.byteLength(arg) + '\r\n' + arg + '\r\n';
       } else if ('number' === arg_type) {
         // We can send this in one go.
         previous += '$' + ('' + arg).length + '\r\n' + arg + '\r\n';

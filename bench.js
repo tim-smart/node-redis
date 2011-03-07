@@ -1,11 +1,11 @@
 var redis  = require('./'),
-    redis2 = require('redis'),
+    //redis2 = require('redis'),
     //redis3 = require('./bench/redis-node/redis'),
     //redis4 = require('./bench/redis-client'),
     Seq    = require('parallel').Sequence,
     assert = require('assert');
 
-var clients = { 'node-redis': redis.createClient(),  'node_redis':        redis2.createClient(),
+var clients = { 'node-redis': redis.createClient(),  /*'node_redis':        redis2.createClient(),*/
                 /*'redis-node': redis3.createClient(), 'redis-node-client': redis4.createClient()*/ }
 
 var iterations = 5000,
@@ -44,9 +44,9 @@ var benches = {
   },
   lrange: function (client, callback) {
     for (var i = 0; i < iterations - 1; i++) {
-      client.lrange('bench', 0, 99);
+      client.lrange('bench', 0, 10);
     }
-    client.lrange('bench', 0, 99, callback);
+    client.lrange('bench', 0, 10, callback);
   },
   hmset: function (client, callback) {
     if ('redis-node' === client._name) return callback();
