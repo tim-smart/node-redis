@@ -1,5 +1,5 @@
 var redis  = require('./'),
-    //redis2 = require('redis'),
+    redis2 = require('redis'),
     //redis3 = require('./bench/redis-node/redis'),
     //redis4 = require('./bench/redis-client'),
     Seq    = require('parallel').Sequence,
@@ -9,7 +9,7 @@ var clients = { 'node-redis': redis.createClient(),  /*'node_redis':        redi
                 /*'redis-node': redis3.createClient(), 'redis-node-client': redis4.createClient()*/ }
 
 var iterations = 5000,
-    number     = 3;
+    number     = 10;
 
 //var buffer = require('fs').readFileSync('binary');
 var buffer = new Buffer(Array(1025 * 2).join('x'));
@@ -62,6 +62,12 @@ var benches = {
     }
     client.hmget('bench' + i, 'key', 'key2', callback);
   },
+  del2: function (client, callback) {
+    for (var i = 0; i < iterations - 1; i++) {
+      client.del('bench' + i);
+    }
+    client.del('bench' + i, callback);
+  },
 };
 
 var task   = new Seq(),
@@ -87,7 +93,7 @@ Object.keys(clients).forEach(function (client) {
     });
 
     task.add(function (next) {
-      client.flushall(next);
+      client.del('bench', next);
     });
   }
 });
@@ -102,10 +108,6 @@ Object.keys(clients).forEach(function (client) {
     warmup.add(function (next) {
       client.flushall(next);
     });
-  });
-
-  warmup.add(function (next) {
-    clients['node-redis'].del('bench', next);
   });
 });
 

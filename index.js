@@ -8,6 +8,8 @@ var RedisClient = function RedisClient(port, host, auth) {
   this.auth           = auth;
   this.stream         = net.createConnection(port, host);;
   this.connected      = false;
+  // Pub/sub monitor etc.
+  this.blocking       = false;
   // Command queue.
   this.max_size       = 500;
   this.command        = '';
@@ -106,9 +108,63 @@ var RedisClient = function RedisClient(port, host, auth) {
   // Setup the parser.
   this.parser = new Parser();
 
-  this.parser.on('reply', function (reply) {
+  this.parser.on('reply', function onReply (reply) {
+    if (false !== self.blocking) {
+      if ('pubsub' === self.blocking) {
+        var type = reply[0].toString();
+
+        switch (type) {
+        case 'psubscribe':
+        case 'punsubscribe':
+        case 'subscribe':
+        case 'unsubscribe':
+          var channel = reply[1].toString(),
+              count   = reply[2];
+
+          if (0 === count) {
+            self.blocking = false;
+          }
+
+          self.emit(type, channel, count);
+          self.emit(type + ':' + channel, count);
+          break;
+        case 'message':
+          var key  = reply[1].toString(),
+              data = reply[2];
+          self.emit('message', key, data);
+          self.emit('message:' + key, data);
+          break;
+        case 'pmessage':
+          var pattern = reply[1].toString(),
+              key     = reply[2].toString(),
+              data    = reply[3];
+          self.emit('pmessage', pattern, key, data);
+          self.emit('pmessage:' + pattern, key, data);
+          break;
+        }
+      } else {
+        self.emit('data', reply);
+      }
+      return;
+    }
+
     var command = self.commands.shift();
-    if (command && command[2]) command[2](null, reply);
+    if (command) {
+      switch (command[0]) {
+      case 'MONITOR':
+        self.blocking = true;
+        break;
+      case 'SUBSCRIBE':
+      case 'PSUBSCRIBE':
+        self.blocking = 'pubsub';
+        onReply(reply);
+        return;
+      }
+
+      if (command[2]) {
+        command[2](null, reply);
+      }
+    }
   });
 
   // DB error
@@ -132,6 +188,10 @@ exports.RedisClient = RedisClient;
 // createClient
 exports.createClient = function createClient (port, host, auth) {
   return new RedisClient(port || 6379, host, auth);
+};
+
+RedisClient.prototype.connect = function () {
+  return this.stream.connect();
 };
 
 RedisClient.prototype.onDisconnect = function (error) {
@@ -192,7 +252,9 @@ RedisClient.prototype.write = function write (data, buffer) {
 // * args IS an array
 RedisClient.prototype.sendCommand = function (command, args, callback) {
   // Push the command to the stack.
-  this.commands.push([command, args, callback]);
+  if (false === this.blocking) {
+    this.commands.push([command, args, callback]);
+  }
 
   // Writable?
   if (false === this.connected) return;
@@ -278,6 +340,8 @@ exports.commands = [
   // Undocumented commands
   "PING",
 ];
+
+this.blocking_commands = ["MONITOR"];
 
 // For each command, make a buffer for it.
 var command_buffers = {};
