@@ -5,17 +5,26 @@ var redis  = require('./'),
     Seq    = require('parallel').Sequence,
     assert = require('assert');
 
-var clients = { 'node-redis': redis.createClient(),  /*'node_redis':        redis2.createClient(),*/
+var clients = { 'node-redis': redis.createClient(),  'node_redis':        redis2.createClient(),
                 /*'redis-node': redis3.createClient(), 'redis-node-client': redis4.createClient()*/ }
 
 var iterations = 5000,
-    number     = 10;
+    number     = 5;
 
+//var buffer = JSON.stringify({
+  //name: 'Bob Marley',
+  //dob: '31/12/1980',
+  //hash: '213897d9827o7fn437nv348n534',
+  //salt: '12345',
+  //bio: 'p983u4f hh sdh khfkslh kfjh dkshljdh k hslhlhuil huihsuidh liushuilsh lihgudif hlugfdhliughduil hgdf',
+  //created: Date.now()
+//});
 //var buffer = require('fs').readFileSync('binary');
-var buffer = new Buffer(Array(1025 * 2).join('x'));
+//var buffer = new Buffer(Array(1025 * 2).join('x'));
 //var buffer = Array(1025 * 2).join('x');
 //var buffer = 'Some some random text for the benchmark.';
 //var buffer = 'xxx';
+//var buffer = require('fs').readFileSync('bench/html');
 
 var benches = {
   set: function (client, callback) {

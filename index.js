@@ -11,7 +11,7 @@ var RedisClient = function RedisClient(port, host, auth) {
   // Pub/sub monitor etc.
   this.blocking       = false;
   // Command queue.
-  this.max_size       = 500;
+  this.max_size       = 1300;
   this.command        = '';
   this.commands       = new utils.Queue();
   // For the retry timer.
@@ -298,7 +298,8 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
   }
 };
 
-RedisClient.prototype.quit = RedisClient.prototype.end = function () {
+RedisClient.prototype.quit = RedisClient.prototype.end =
+function () {
   this.quitting = true;
   return this.sendCommand('QUIT');
 };
@@ -308,37 +309,23 @@ RedisClient.prototype.destroy = function () {
   return this.stream.destroy();
 };
 
-// http://code.google.com/p/redis/wiki/CommandReference
+// http://redis.io/commands.json
 exports.commands = [
-  // Connection handling
-  "QUIT", "AUTH",
-  // Commands operating on all value types
-  "EXISTS", "DEL", "TYPE", "KEYS", "RANDOMKEY", "RENAME", "RENAMENX", "DBSIZE", "EXPIRE", "TTL", "SELECT",
-  "MOVE", "FLUSHDB", "FLUSHALL",
-  // Commands operating on string values
-  "SET", "GET", "GETSET", "MGET", "SETNX", "SETEX", "MSET", "MSETNX", "INCR", "INCRBY", "DECR", "DECRBY", "APPEND", "SUBSTR",
-  // Commands operating on lists
-  "RPUSH", "LPUSH", "LLEN", "LRANGE", "LTRIM", "LINDEX", "LSET", "LREM", "LPOP", "RPOP", "BLPOP", "BRPOP", "RPOPLPUSH",
-  // Commands operating on sets
-  "SADD", "SREM", "SPOP", "SMOVE", "SCARD", "SISMEMBER", "SINTER", "SINTERSTORE", "SUNION", "SUNIONSTORE", "SDIFF", "SDIFFSTORE",
-  "SMEMBERS", "SRANDMEMBER",
-  // Commands operating on sorted zsets (sorted sets)
-  "ZADD", "ZREM", "ZINCRBY", "ZRANK", "ZREVRANK", "ZRANGE", "ZREVRANGE", "ZRANGEBYSCORE", "ZCOUNT", "ZCARD", "ZSCORE",
-  "ZREMRANGEBYRANK", "ZREMRANGEBYSCORE", "ZUNIONSTORE", "ZINTERSTORE",
-  // Commands operating on hashes
-  "HSET", "HSETNX", "HGET", "HMGET", "HMSET", "HINCRBY", "HEXISTS", "HDEL", "HLEN", "HKEYS", "HVALS", "HGETALL",
-  // Sorting
-  "SORT",
-  // Persistence control commands
-  "SAVE", "BGSAVE", "LASTSAVE", "SHUTDOWN", "BGREWRITEAOF",
-  // Remote server control commands
-  "INFO", "MONITOR", "SLAVEOF", "CONFIG",
-  // Publish/Subscribe
-  "PUBLISH", "SUBSCRIBE", "PSUBSCRIBE", "UNSUBSCRIBE", "PUNSUBSCRIBE",
-  // Transactions
-  "MULTI", "EXEC", "DISCARD", "WATCH", "UNWATCH",
-  // Undocumented commands
-  "PING",
+  'APPEND', 'AUTH', 'BGREWRITEAOF', 'BGSAVE', 'BLPOP', 'BRPOP', 'BRPOPLPUSH', 'CONFIG GET',
+  'CONFIG SET', 'CONFIG RESETSTAT', 'DBSIZE', 'DEBUG OBJECT', 'DEBUG SEGFAULT', 'DECR',
+  'DECRBY', 'DEL', 'DISCARD', 'ECHO', 'EXEC', 'EXISTS', 'EXPIRE', 'EXPIREAT', 'FLUSHALL',
+  'FLUSHDB', 'GET', 'GETBIT', 'GETRANGE', 'GETSET', 'HDEL', 'HEXISTS', 'HGET', 'HGETALL',
+  'HINCRBY', 'HKEYS', 'HLEN', 'HMGET', 'HMSET', 'HSET', 'HSETNX', 'HVALS', 'INCR', 'INCRBY',
+  'INFO', 'KEYS', 'LASTSAVE', 'LINDEX', 'LINSERT', 'LLEN', 'LPOP', 'LPUSH', 'LPUSHX', 'LRANGE',
+  'LREM', 'LSET', 'LTRIM', 'MGET', 'MONITOR', 'MOVE', 'MSET', 'MSETNX', 'MULTI', 'PERSIST',
+  'PING', 'PSUBSCRIBE', 'PUBLISH', 'PUNSUBSCRIBE', /* 'QUIT', */ 'RANDOMKEY', 'RENAME', 'RENAMENX',
+  'RPOP', 'RPOPLPUSH', 'RPUSH', 'RPUSHX', 'SADD', 'SAVE', 'SCARD', 'SDIFF', 'SDIFFSTORE', 'SELECT',
+  'SET', 'SETBIT', 'SETEX', 'SETNX', 'SETRANGE', 'SHUTDOWN', 'SINTER', 'SINTERSTORE', 'SISMEMBER',
+  'SLAVEOF', 'SMEMBERS', 'SMOVE', 'SORT', 'SPOP', 'SRANDMEMBER', 'SREM', 'STRLEN', 'SUBSCRIBE',
+  'SUNION', 'SUNIONSTORE', 'SYNC', 'TTL', 'TYPE', 'UNSUBSCRIBE', 'UNWATCH', 'WATCH', 'ZADD',
+  'ZCARD', 'ZCOUNT', 'ZINCRBY', 'ZINTERSTORE', 'ZRANGE', 'ZRANGEBYSCORE', 'ZRANK', 'ZREM',
+  'ZREMRANGEBYRANK', 'ZREMRANGEBYSCORE', 'ZREVRANGE', 'ZREVRANGEBYSCORE', 'ZREVRANK', 'ZSCORE',
+  'ZUNIONSTORE'
 ];
 
 this.blocking_commands = ["MONITOR"];
