@@ -298,12 +298,6 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
   }
 };
 
-RedisClient.prototype.quit = RedisClient.prototype.end =
-function () {
-  this.quitting = true;
-  return this.sendCommand('QUIT');
-};
-
 RedisClient.prototype.destroy = function () {
   this.quitting = true;
   return this.stream.destroy();
@@ -318,7 +312,7 @@ exports.commands = [
   'HINCRBY', 'HKEYS', 'HLEN', 'HMGET', 'HMSET', 'HSET', 'HSETNX', 'HVALS', 'INCR', 'INCRBY',
   'INFO', 'KEYS', 'LASTSAVE', 'LINDEX', 'LINSERT', 'LLEN', 'LPOP', 'LPUSH', 'LPUSHX', 'LRANGE',
   'LREM', 'LSET', 'LTRIM', 'MGET', 'MONITOR', 'MOVE', 'MSET', 'MSETNX', 'MULTI', 'PERSIST',
-  'PING', 'PSUBSCRIBE', 'PUBLISH', 'PUNSUBSCRIBE', /* 'QUIT', */ 'RANDOMKEY', 'RENAME', 'RENAMENX',
+  'PING', 'PSUBSCRIBE', 'PUBLISH', 'PUNSUBSCRIBE', 'QUIT', 'RANDOMKEY', 'RENAME', 'RENAMENX',
   'RPOP', 'RPOPLPUSH', 'RPUSH', 'RPUSHX', 'SADD', 'SAVE', 'SCARD', 'SDIFF', 'SDIFFSTORE', 'SELECT',
   'SET', 'SETBIT', 'SETEX', 'SETNX', 'SETRANGE', 'SHUTDOWN', 'SINTER', 'SINTERSTORE', 'SISMEMBER',
   'SLAVEOF', 'SMEMBERS', 'SMOVE', 'SORT', 'SPOP', 'SRANDMEMBER', 'SREM', 'STRLEN', 'SUBSCRIBE',
@@ -360,4 +354,11 @@ exports.commands.forEach(function (command) {
     };
   }
 });
+
+// Overwrite quit
+RedisClient.prototype.quit = RedisClient.prototype.end =
+function () {
+  this.quitting = true;
+  return this.sendCommand('QUIT');
+};
 

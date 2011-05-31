@@ -22,7 +22,7 @@ var iterations = 5000,
 //var buffer = require('fs').readFileSync('binary');
 //var buffer = new Buffer(Array(1025 * 2).join('x'));
 //var buffer = Array(1025 * 2).join('x');
-//var buffer = 'Some some random text for the benchmark.';
+var buffer = 'Some some random text for the benchmark.';
 //var buffer = 'xxx';
 //var buffer = require('fs').readFileSync('bench/html');
 
