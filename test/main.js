@@ -23,23 +23,28 @@ module.exports = {
     });
 
   },
-  "test stress": function () {
+  "test stress": function (done) {
     var n = 0,
         o = 0;
 
-    for (var i = 0; i < 100000; i++) {
+    for (var i = 0; i < 10000; i++) {
       c.set('2' + i, buffer, function (error) {
         assert.ok(!error);
         ++n;
       });
     }
 
-    for (i = 0; i < 100000; i++) {
+    for (i = 0; i < 10000; i++) {
       c.del('2' + i, function (error) {
         assert.ok(!error);
         ++o;
       });
     }
+
+    c.ping(function (error) {
+      assert.ok(!error)
+      done()
+    })
 
     process.on('exit', function () {
       assert.equal(10000, n);

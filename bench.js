@@ -1,11 +1,11 @@
 var redis  = require('./'),
-    redis2 = require('redis'),
+    //redis2 = require('redis'),
     //redis3 = require('./bench/redis-node/redis'),
     //redis4 = require('./bench/redis-client'),
     Seq    = require('parallel').Sequence,
     assert = require('assert');
 
-var clients = { 'node-redis': redis.createClient(),  'node_redis':        redis2.createClient(),
+var clients = { 'node-redis': redis.createClient()/*,  'node_redis':        redis2.createClient(),*/
                 /*'redis-node': redis3.createClient(), 'redis-node-client': redis4.createClient()*/ }
 
 var iterations = 5000,

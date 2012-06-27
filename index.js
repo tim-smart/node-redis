@@ -97,7 +97,12 @@ var RedisClient = function RedisClient(port, host, auth) {
     if (self.retry) return;
     self.emit('end');
     self.emit('close');
-    if (self.quitting) return;
+    if (self.quitting) {
+      for (var i = 0, il = self.commands.length; i < il; i++) {
+        self.parser.emit('reply');
+      }
+      return;
+    }
 
     self.onDisconnect();
   };
@@ -265,7 +270,7 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
 
   if (args && 0 < (args_length = args.length)) {
     var arg, arg_type, last,
-        previous = '*' + (args_length + 1) + '\r\n' + '$' + command.length + '\r\n' + command + '\r\n';
+        previous = ['*', (args_length + 1), '\r\n', '$', command.length, '\r\n', command, '\r\n'];
 
     for (i = 0, il = args_length; i < il; i++) {
       arg      = args[i];
@@ -273,25 +278,26 @@ RedisClient.prototype.sendCommand = function (command, args, callback) {
 
       if ('string' === arg_type) {
         // We can send this in one go.
-        previous += '$' + Buffer.byteLength(arg) + '\r\n' + arg + '\r\n';
+        previous.push('$', Buffer.byteLength(arg), '\r\n', arg, '\r\n');
       } else if ('number' === arg_type) {
         // We can send this in one go.
-        previous += '$' + ('' + arg).length + '\r\n' + arg + '\r\n';
+        previous.push('$', ('' + arg).length, '\r\n', arg, '\r\n');
       } else if (null === arg || 'undefined' === arg_type) {
         // Send NIL
-        this.write(previous + '$0\r\n\r\n');
-        previous = '';
+        previous.push('$\r\b\r\b')
+        this.write(previous.join(''));
+        previous = [];
       } else {
         // Assume we are a buffer.
-        previous += '$' + arg.length + '\r\n';
-        this.write(previous);
+        previous.push('$', arg.length, '\r\n');
+        this.write(previous.join(''));
         this.write(arg, true);
-        previous  = '\r\n';
+        previous  = ['\r\n'];
       }
     }
 
     // Anything left?
-    this.write(previous);
+    this.write(previous.join(''));
   } else {
     // We are just sending a stand alone command.
     this.write(command_buffers[command]);
@@ -329,7 +335,8 @@ var command_buffers = {};
 
 exports.commands.forEach(function (command) {
   // Pre-alloc buffers for non-multi commands.
-  command_buffers[command] = new Buffer('*1\r\n$' + command.length + '\r\n' + command + '\r\n');
+  //command_buffers[command] = new Buffer('*1\r\n$' + command.length + '\r\n' + command + '\r\n');
+  command_buffers[command] = '*1\r\n$' + command.length + '\r\n' + command + '\r\n';
 
   // Don't override stuff.
   if (!RedisClient.prototype[command.toLowerCase()]) {
@@ -357,8 +364,8 @@ exports.commands.forEach(function (command) {
 
 // Overwrite quit
 RedisClient.prototype.quit = RedisClient.prototype.end =
-function () {
+function (callback) {
   this.quitting = true;
-  return this.sendCommand('QUIT');
+  return this.sendCommand('QUIT', null, callback);
 };
 
