@@ -348,16 +348,17 @@ exports.commands.forEach(function (command) {
       }
 
       // Arbitary amount of arguments.
-      callback = typeof arguments[arguments.length - 1] === 'function';
-      args     = utils.toArray(arguments);
+      var args    = [];
+      args.push.apply(args, arguments);
+      callback    = 'function' === typeof args[args.length - 1];
 
-      if (true === callback) {
-        callback = args.pop();
+      if (callback) {
+        callback  = args.pop();
       } else {
-        callback = null;
+        callback  = null;
       }
 
-      return this.sendCommand(command, args, callback);
+      this.sendCommand(command, args, callback);
     };
   }
 });
