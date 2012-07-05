@@ -340,11 +340,11 @@ exports.commands.forEach(function (command) {
 
   // Don't override stuff.
   if (!RedisClient.prototype[command.toLowerCase()]) {
-    RedisClient.prototype[command.toLowerCase()] = function (array, fn) {
+    RedisClient.prototype[command.toLowerCase()] = function (array, callback) {
       // An array of args.
       // Assume we only have two args.
       if (Array.isArray(array)) {
-        return this.sendCommand(command, array, fn);
+        return this.sendCommand(command, array, callback);
       }
 
       // Arbitary amount of arguments.
