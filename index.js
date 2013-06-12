@@ -29,7 +29,7 @@ var RedisClient = function RedisClient(port, host, auth) {
   this.host           = host;
   this.port           = port;
   this.auth           = auth;
-  this.stream         = net.createConnection(port, host);;
+  this.stream         = net.createConnection(port, host);
   this.connected      = false;
   // Pub/sub monitor etc.
   this.blocking       = false;
@@ -48,6 +48,8 @@ var RedisClient = function RedisClient(port, host, auth) {
   this.paused         = false;
   this.send_buffer    = [];
   this.flushing       = false;
+  // channels / patterns for disconnects
+  this.pubsub         = { pattern : {}, channel : {} }
 
   var self = this;
 
@@ -74,6 +76,17 @@ var RedisClient = function RedisClient(port, host, auth) {
     for (var i = 0, il = commands.length; i < il; i++) {
       command = commands[i];
       self.sendCommand(command[0], command[1], command[2]);
+    }
+
+    // pubsub?
+    var patterns = Object.keys(self.pubsub.pattern)
+    var channels = Object.keys(self.pubsub.channel)
+
+    for (var i = 0, il = patterns.length; i < il; i++) {
+      self.psubscribe(patterns[i])
+    }
+    for (var i = 0, il = channels.length; i < il; i++) {
+      self.subscribe(channels[i])
     }
 
     // give connect listeners a chance to run first in case they need to auth
@@ -112,6 +125,7 @@ var RedisClient = function RedisClient(port, host, auth) {
   this.stream.on('drain', this._flush);
 
   this.stream.on("error", function (error) {
+    if ('ECONNREFUSED' === error.code) self.onDisconnect()
     self.emit("error", error);
   });
 
@@ -151,6 +165,18 @@ var RedisClient = function RedisClient(port, host, auth) {
 
           if (0 === count) {
             self.blocking = false;
+
+            if ('punsubscribe' === type) {
+              delete self.pubsub.pattern[channel]
+            } else if ('unsubscribe' === type) {
+              delete self.pubsub.channel[channel]
+            }
+          }
+
+          if ('psubscribe' === type) {
+            self.pubsub.pattern[channel] = true
+          } else if ('subscribe' === type) {
+            self.pubsub.channel[channel] = true
           }
 
           self.emit(type, channel, count);
@@ -204,8 +230,6 @@ var RedisClient = function RedisClient(port, host, auth) {
   });
 
   process.EventEmitter.call(this);
-
-  return this;
 };
 
 RedisClient.prototype = Object.create(process.EventEmitter.prototype);
