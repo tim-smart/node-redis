@@ -1,7 +1,7 @@
 {
   "name": "node-redis",
   "description": "Lightweight, fast, Redis client.",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "author": "Tim Smart",
   "contributors": [
     "Matt Ranney"
@@ -10,6 +10,6 @@
     "type": "git",
     "url": "http://github.com/Tim-Smart/node-redis.git"
   },
-  "engine": [ "node >=0.2.2" ],
+  "engine": [ "node >=0.8" ],
   "main": "./"
 }
